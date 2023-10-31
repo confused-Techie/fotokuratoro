@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const sizeOf = require("image-size");
+const inspectDuplicate = require("./inspectDuplicate.js");
 
 module.exports =
 async function inspect(file, pathArray, filename, opts, stats) {
@@ -63,9 +64,8 @@ async function inspect(file, pathArray, filename, opts, stats) {
 
   if (opts.inspectDuplicate) {
     // Removes duplicate files
-    let image = fs.readFileSync(file);
-    console.log(image);
-    process.exit(1);
+    let duplicateAction = await inspectDuplicate(file, filename, opts);
+
   }
 
 

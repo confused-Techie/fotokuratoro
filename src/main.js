@@ -34,7 +34,7 @@ async function run(args) {
 }
 
 async function handleFile(file, pathArray, filename, immediateReturn) {
-
+  
   try {
     let act = await opts.inspect(file, pathArray, filename, opts, stats);
 

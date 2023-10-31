@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "image-size": "^1.0.2"
+    "image-size": "^1.0.2",
+    "node-magickwand": "^0.9.7"
   }
 }
