@@ -1,6 +1,7 @@
 
 function hamming_distance(str1, str2) {
   if (str1.length != str2.length) {
+    console.log(`${str1} (${str1.length}) - ${str2} (${str2.length})`);
     throw new Error("String values must be equal!");
   }
 

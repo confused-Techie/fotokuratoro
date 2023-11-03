@@ -7,6 +7,7 @@
  * - Determine a level of confidence that an image is identical.
  */
 
+const { Buffer } = require("node:buffer");
 const { Magick, Color } = require("node-magickwand");
 const algo = require("./algorithms.js");
 
@@ -14,6 +15,7 @@ const algo = require("./algorithms.js");
 // TODO: May be a good idea to look at optimizing for ram, or storage
 // As a huge amount of images, will very likely cause issues this way
 const IMAGES = {};
+const dHashSimilarityScore = 10;
 
 module.exports =
 async function main(filepath, filename, opts) {
@@ -31,49 +33,84 @@ async function main(filepath, filename, opts) {
   // From here we can generate our forms of data, or we can compare against others
   let dHashData = await dHash(filepath);
   IMAGES[filename].dHash = dHashData;
-  console.log(IMAGES);
 
   let dupFound = await scanImages();
+
+  // Then we need to run any other comparison algorithms we want.
+
+  // TODO: Process this array to make it a proper potential action
+  if (dupFound.length === 0) {
+    return dupFound;
+  }
+
+  let dupFoundActions = [];
+
+  for (let i = 0; i < dupFound.length; i++) {
+    dupFoundActions.push({
+      action: "delete-choice",
+      reason: `The files: ${dupFound[i].image1} seems to be identical to ${dupFound[i].image2}, scoring a '${dupFound[i].score}' via ${dupFound[i].method}`
+    });
+  }
+
+  return dupFoundActions;
 }
 
 async function scanImages() {
+  let dupsFound = [];
   for (const image in IMAGES) {
     for (const subimage in IMAGES) {
+      if (image === subimage) {
+        // Skip identical files
+        continue;
+      }
+
+      if (typeof IMAGES[image]?.dHash_hamming?.[subimage] === "number") {
+        // Since the subimage already exists here, we know they have been compared
+        // previously, and there's no need to compare again
+        continue;
+      }
+
       // Use hamming_distance on dHash values
-      console.log(image);
-      console.log(subimage);
       let hd = algo.hamming_distance(IMAGES[image].dHash, IMAGES[subimage].dHash);
-      console.log(`${image} v ${subimage} - ${hd}`);
+      if (IMAGES[image].dHash_hamming === undefined) {
+        IMAGES[image].dHash_hamming = {};
+      }
+      if (IMAGES[subimage].dHash_hamming === undefined) {
+        IMAGES[subimage].dHash_hamming = {};
+      }
+
+      IMAGES[image].dHash_hamming[subimage] = hd;
+      IMAGES[subimage].dHash_hamming[image] = hd;
+
+      if (hd < dHashSimilarityScore) {
+        dupsFound.push({
+          image1: image,
+          image2: subimage,
+          score: hd,
+          method: "Difference Hash"
+        });
+      }
     }
   }
+
+  return dupsFound;
 }
 
 
 async function dHash(filepath) {
-  // A simple implementation of 'Difference Hash'
-  // With a slight variation.
-  // This function has two modes built in, with one commented out:
-  // - Disabled: Saves a greyscale version of the image
-  // - Active: Creates a hex string of the greyscale pixel data. Allowing for use
-  //           with comparisons of the hamming distance later on
-  // A simple, slightly custom implementation of dHash or 'Difference Hash'
+  // Our custom implementation of 'Difference Hash'
   // Source: https://hackerfactor.com/blog/?/archives/529-Kind-of-Like-That.html
-  // Here we take an image, scaling it down to '9x8', then convert to greyscale.
-  // While converting to greyscale we get the pixel value of each position and
-  // create an array with these pixels. Where we can then encode them into a
-  // Hexdecimal string.
-  // From here this string is available to run against other comparisons,
-  // such as the Hamming Distance
+  // We resize an image to '9x8' (ignoring aspect ratio), then create an array
+  // of pixels as they're greyscale only value.
+  // Once we have a flat array of the greyscale pixel data we generate a gradient
+  // array. This gradient array is then the image's hash, that we can use in
+  // simple string distance algorithms to determine similarity.
 
-  // TODO Convert image to greyscale
   let im = new Magick.Image(filepath);
-  // Without converting to greyscale, we can at least reduce our color data
-  await im.scaleAsync('9x8'); // We will scale the image down to 150x150 pixels
-  // This is largely a random value.
+  await im.scaleAsync('9x8!');
+  // Using '!' causes the scaling to ignore the aspect ratio
 
   // From here, we will need to convert our rows of pixels to grayscale, storing as we go
-
-  //let pixels = new Float32Array(im.size().width() * im.size().height() * 3);
   let pixels = [];
 
   for (let y = 0; y < im.size().height(); y++) {
@@ -84,24 +121,27 @@ async function dHash(filepath) {
       const pos = (y * im.size().width() + x) * 3;
 
       pixels.push(avg);
-      //pixels[pos] = avg;
-      //pixels[pos + 1] = avg;
-      //pixels[pos + 2] = avg;
     }
   }
-  // The above snippet should give us a Float32Array of pixel values for the whole
-  // image, now in grayscale
-  //const grayIm = new Magick.Image(im.size().width(), im.size().height(), 'RGB', pixels);
 
-  //await Magick.writeImagesAsync([grayIm], "./hello.jpeg");
+  // Lets determine the gradiant of pixel changes
+  let hashArray = [];
+  let nextI = 1;
+  for (let i = 0; i < pixels.length; i++) {
 
-  let hash = toHexString(pixels);
-  console.log(hash);
+    if (nextI === pixels.length) {
+      continue;
+    }
+
+    if (pixels[i] > pixels[nextI]) {
+      hashArray.push(1);
+    } else {
+      hashArray.push(0);
+    }
+
+    nextI++;
+  }
+
+  let hash = hashArray.join('');
   return hash;
-}
-
-function toHexString(arr) {
-  return Array.from(arr, (byte) => {
-    return byte.toString(16).slice(-2);
-  }).join("");
 }

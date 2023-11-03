@@ -8,9 +8,9 @@ async function inspect(file, pathArray, filename, opts, stats) {
   // The inspect function contains the real logic of this application.
   // Being the one to actually preform any and all actions configured.
 
-  // This array will collect all gathered potential actions, that we will then
-  // prior to returning the final action we will need to inspect
-  const potentialActions = [];
+  // This array will collect all gathered potential actions as determined by
+  // each method of inspection
+  let potentialActions = [];
 
   let ext = path.extname(filename);
 
@@ -65,11 +65,13 @@ async function inspect(file, pathArray, filename, opts, stats) {
   if (opts.inspectDuplicate) {
     // Removes duplicate files
     let duplicateAction = await inspectDuplicate(file, filename, opts);
-
+    if (duplicateAction.length != 0) {
+      potentialActions = potentialActions.concat(duplicateAction);
+    }
   }
 
 
-  return;
+  return potentialActions;
 }
 
 const IMAGE_SIZE_SUPPORTED_FILES = [

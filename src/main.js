@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const util = require("node:util");
 const processArgs = require("./processArgs.js");
 
 let opts = {};
@@ -23,7 +24,7 @@ async function run(args) {
 
   // After checking all files we can then provide options to the user on actions to take,
   // or output statistics on what was done
-
+  console.log(util.inspect(actions, { depth: null }));
   console.log(`Checked ${stats.files.length} total files.`);
 
   if (opts.verbose) {
@@ -34,7 +35,7 @@ async function run(args) {
 }
 
 async function handleFile(file, pathArray, filename, immediateReturn) {
-  
+
   try {
     let act = await opts.inspect(file, pathArray, filename, opts, stats);
 
